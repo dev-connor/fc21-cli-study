@@ -6,11 +6,13 @@ const { GITHUB_ACCESS_TOKEN } = process.env
 
 const { program } = require('commander')
 const { Octokit } = require('octokit')
-const { isLabeledStatement } = require('typescript')
 
 program.version('0.0.1')
 
 const octokit = new Octokit({ auth: GITHUB_ACCESS_TOKEN })
+
+const OWNER = 'dev-connor'
+const REPO = 'fc21-cli-study'
 
 program
   .command('me')
@@ -27,8 +29,8 @@ program
   .description('List issues with bug label')
   .action(async () => {
     const result = await octokit.rest.issues.listForRepo({
-      owner: 'dev-connor',
-      repo: 'fc21-cli-study', 
+      owner: OWNER,
+      repo: REPO, 
       labels: 'bug',
     })
 
@@ -50,7 +52,29 @@ program
   .command('check-prs')
   .description('Check pull request status')
   .action(async () => {
-    console.log('Check PRs!')
+    const result = await octokit.rest.pulls.list({
+      owner: OWNER,
+      repo: REPO,
+      
+    })
+
+    result.data.map(pr => {
+
+    })
+
+    const prsWithDiff = await Promise.all(
+        result.data.map(async pr => ({
+          number: pr.number,
+          compare: await octokit.rest.repos.compareCommits({
+            owner: OWNER,
+            repo: REPO,
+            base: pr.base.ref,
+            head: pr.head.ref,
+        }),
+      }))
+      )
+    
+    console.log(diffs.map(diff => diff.compare.data.files))
   })
 
 program.parseAsync()
