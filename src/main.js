@@ -6,8 +6,7 @@ const { GITHUB_ACCESS_TOKEN } = process.env
 
 const { program } = require('commander')
 const { Octokit } = require('octokit')
-const { default: processTailwindFeatures } = require('tailwindcss/lib/processTailwindFeatures')
-const { isLabeledStatement } = require('typescript')
+const prompts = require('prompts')
 
 program.version('0.0.1')
 
@@ -94,19 +93,32 @@ program
       })
       .filter(
         (pr) => 
-        pr && typeof pr.totalChanges === 'number' && pr.totalChanges > 100
+        pr && typeof pr.totalChanges === 'number' && pr.totalChanges > 1
       )
       .map(async ({ labels, number, totalChanges }) => {
         console.log('PR', number, 'totalChanges:', totalChanges)
         
         if (!labels.find(label => label.name === LABEL_TOO_BIG)) {
           console.log(`Adding ${LABEL_TOO_BIG} label to PR ${number}...`)
-          return octokit.rest.issues.addLabels({
-            owner: OWNER,
-            repo: REPO,
-            issue_number: number,
-            labels: [LABEL_TOO_BIG]
-          })
+
+          const response = await prompts(
+            {
+              type: 'confirm',
+              name: 'shouldContinue',
+              message: `Do you really want to add label ${LABEL_TOO_BIG} to PR #${number}?`
+            },
+          )
+
+          if (response.shouldContinue) {
+            return octokit.rest.issues.addLabels({
+              owner: OWNER,
+              repo: REPO,
+              issue_number: number,
+              labels: [LABEL_TOO_BIG]
+            })
+          } 
+            console.log('Cancelled!')
+          
         }
         return undefined
       })
