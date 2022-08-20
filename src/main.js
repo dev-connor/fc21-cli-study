@@ -126,4 +126,21 @@ program
       )
   })
 
+  // bug 레이블이 달려 있으나, 스크린샷이 없는 이슈에 대해서 needs-screenshot 레이블을 달아주기
+  program
+  .command('check-screenshots')
+  .description('check if any issue is missing screenshot event if it has bug label on it'
+  )
+  .action(async() => {
+    const result = await octokit.rest.issues.listForRepo({
+      owner: OWNER,
+      repo: REPO, 
+      labels: 'bug',
+    })
+
+    const issuesWithBugLabel = result.data
+
+
+})
+
 program.parseAsync()
