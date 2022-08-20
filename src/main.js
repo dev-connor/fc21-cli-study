@@ -6,6 +6,7 @@ const { GITHUB_ACCESS_TOKEN } = process.env
 
 const { program } = require('commander')
 const { Octokit } = require('octokit')
+const { isLabeledStatement } = require('typescript')
 
 program.version('0.0.1')
 
@@ -30,9 +31,17 @@ program
       repo: 'fc21-cli-study', 
     })
 
-    result.data.forEach(issue => {
-      console.log(issue.number, issue.labels)
-    })
+    const issuesWithBugLabel = result.data.filter(
+      (issue) => 
+        issue.labels.find((label) => label.name === 'bug') !== undefined
+    )
+
+    const output = issuesWithBugLabel.map(issue => ({
+      title: issue.title,
+      number: issue.number
+    }))
+    
+    console.log(output)
   })
 
 program
