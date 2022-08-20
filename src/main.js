@@ -25,7 +25,14 @@ program
   .command('list-bugs')
   .description('List issues with bug label')
   .action(async () => {
-    console.log('List bugs!');
+    const result = await octokit.rest.issues.listForRepo({
+      owner: 'dev-connor',
+      repo: 'fc21-cli-study', 
+    })
+
+    result.data.forEach(issue => {
+      console.log(issue.number, issue.labels)
+    })
   })
 
 program
