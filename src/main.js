@@ -8,6 +8,7 @@ const { program } = require('commander')
 const { Octokit } = require('octokit')
 const prompts = require('prompts')
 const chalk = require('chalk')
+const marked = require('marked')
 
 program.version('0.0.1')
 
@@ -17,6 +18,8 @@ const OWNER = 'dev-connor'
 const REPO = 'fc21-cli-study'
 
 const LABEL_TOO_BIG = 'too-big'
+const LABEL_BUG = 'bug'
+const LABEL_NEEDS_SCREENSHOT = 'needs-screenshot'
 
 program
   .command('me')
@@ -27,6 +30,16 @@ program
     } = await octokit.rest.users.getAuthenticated()
     console.log("Hello, %s", login)
   })
+
+  /**
+   * 
+   * @param {Array<*>} labels 
+   * @param {string} labelName
+   * @return {boolean}
+   */
+  function hasLabel(labels, labelName) {
+    return labels.find((label) => label.name === labelName) !== undefined
+  }
 
 program
   .command('list-bugs')
@@ -39,8 +52,7 @@ program
     })
 
     const issuesWithBugLabel = result.data.filter(
-      (issue) => 
-        issue.labels.find((label) => label.name === 'bug') !== undefined
+      (issue) => hasLabel(issue.labels, LABEL_BUG)
     )
 
     const output = issuesWithBugLabel.map(issue => ({
@@ -97,10 +109,12 @@ program
         pr && typeof pr.totalChanges === 'number' && pr.totalChanges > 1
       )
       .map(async ({ labels, number, totalChanges }) => {
-        console.log('PR', number, 'totalChanges:', totalChanges)
-        
-        if (!labels.find(label => label.name === LABEL_TOO_BIG)) {
-          console.log(chalk.greenBright(`Adding ${LABEL_TOO_BIG} label to PR ${number}...`))
+        if (!hasLabel(labels, LABEL_TOO_BIG)) {
+          console.log(
+            chalk.greenBright(
+              `Adding ${LABEL_TOO_BIG} label to PR ${number}...`
+              )
+            )
 
           const response = await prompts(
             {
@@ -126,6 +140,24 @@ program
       )
   })
 
+/**
+ * 
+ * @param {string} md 
+ * @return {boolean}
+ */
+function isAnyScreenshotInMarkdownDocument(md) {
+  const tokens = marked.lexer(md)
+
+  let didFind = false
+
+  marked.walkTokens(tokens, (token) => {
+    if (token.type === 'image') {
+      didFind = true
+    }
+  })
+  return didFind
+}
+
   // bug 레이블이 달려 있으나, 스크린샷이 없는 이슈에 대해서 needs-screenshot 레이블을 달아주기
   program
   .command('check-screenshots')
@@ -140,7 +172,32 @@ program
 
     const issuesWithBugLabel = result.data
 
+    // 1. bug 레이블이 있고, 스크린샷이 없음 => needs-screentshot
+    // 2. bug 레이블이 있고, needs-screenshot 있는데 스크린샷 있음 => needs-screenshot
+    const issuesWithoutScreenshot = issuesWithBugLabel.filter(
+      issue => 
+      !issue.body || !isAnyScreenshotInMarkdownDocument(issue.body) &&
+      !hasLabel(issue.labels, LABEL_NEEDS_SCREENSHOT)
+      )
+      await Promise.all(
+        issuesWithoutScreenshot.map(async (issue) => {
+        const shouldContinue = prompts({
+          type: 'confirm',
+          name: 'shouldContinue',
+          message: `Add ${LABEL_NEEDS_SCREENSHOT} to issue #${issue.number}?`,
 
-})
+        })
+
+        if (shouldContinue) {
+          await octokit.rest.issues.addLabels({
+            owner: OWNER,
+            repo: REPO,
+            issue_number: issue.number,
+            labels: [LABEL_NEEDS_SCREENSHOT],
+          })
+        }
+      })
+      )
+    })
 
 program.parseAsync()
