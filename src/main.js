@@ -6,6 +6,8 @@ const { GITHUB_ACCESS_TOKEN } = process.env
 
 const { program } = require('commander')
 const { Octokit } = require('octokit')
+const { default: processTailwindFeatures } = require('tailwindcss/lib/processTailwindFeatures')
+const { isLabeledStatement } = require('typescript')
 
 program.version('0.0.1')
 
@@ -13,6 +15,8 @@ const octokit = new Octokit({ auth: GITHUB_ACCESS_TOKEN })
 
 const OWNER = 'dev-connor'
 const REPO = 'fc21-cli-study'
+
+const LABEL_TOO_BIG = 'too-big'
 
 program
   .command('me')
@@ -64,6 +68,7 @@ program
 
     const prsWithDiff = await Promise.all(
         result.data.map(async pr => ({
+          labels: pr.labels,
           number: pr.number,
           compare: await octokit.rest.repos.compareCommits({
             owner: OWNER,
@@ -73,8 +78,39 @@ program
         }),
       }))
       )
-    
-    console.log(diffs.map(diff => diff.compare.data.files))
+
+      await Promise.all(prsWithDiff
+      .map(({compare, ...rest}) => {
+        const totalChanges = compare.data.files?.reduce(
+          (sum, file) => sum + file.changes
+        , 0
+        )
+        return {
+          compare,
+          totalChanges,
+          ...rest,
+
+        }
+      })
+      .filter(
+        (pr) => 
+        pr && typeof pr.totalChanges === 'number' && pr.totalChanges > 100
+      )
+      .map(async ({ labels, number, totalChanges }) => {
+        console.log('PR', number, 'totalChanges:', totalChanges)
+        
+        if (!labels.find(label => label.name === LABEL_TOO_BIG)) {
+          console.log(`Adding ${LABEL_TOO_BIG} label to PR ${number}...`)
+          return octokit.rest.issues.addLabels({
+            owner: OWNER,
+            repo: REPO,
+            issue_number: number,
+            labels: [LABEL_TOO_BIG]
+          })
+        }
+        return undefined
+      })
+      )
   })
 
 program.parseAsync()
