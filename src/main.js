@@ -173,7 +173,7 @@ function isAnyScreenshotInMarkdownDocument(md) {
     const issuesWithBugLabel = result.data
 
     // 1. bug 레이블이 있고, 스크린샷이 없음 => needs-screentshot
-    // 2. bug 레이블이 있고, needs-screenshot 있는데 스크린샷 있음 => needs-screenshot
+    
     const issuesWithoutScreenshot = issuesWithBugLabel.filter(
       issue => 
       !issue.body || !isAnyScreenshotInMarkdownDocument(issue.body) &&
@@ -197,6 +197,33 @@ function isAnyScreenshotInMarkdownDocument(md) {
           })
         }
       })
+      )
+
+      // 2. bug 레이블이 있고, needs-screenshot 있는데 스크린샷 있음 => needs-screenshot
+      const issuesResolved = issuesWithBugLabel.filter(
+        issue => 
+        issue.body && 
+        isAnyScreenshotInMarkdownDocument(issue.body) && 
+        hasLabel(issue.labels, LABEL_NEEDS_SCREENSHOT)
+      )
+
+      await Promise.all(
+        issuesResolved.map(async (issue) => {
+          const shouldConfirm = prompts({
+            type: 'confirm',
+            name: 'shouldConfirm',
+            message: `Remove ${LABEL_NEEDS_SCREENSHOT} from issue #${issue.number}`,
+          })
+
+          if (shouldConfirm) {
+            await octokit.rest.issues.removeLabel({
+              owner: OWNER,
+              repo: REPO,
+              issue_number: issue.number,
+              name: LABEL_NEEDS_SCREENSHOT,
+            })
+          }
+        })
       )
     })
 
